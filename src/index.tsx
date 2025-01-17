@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Icon, MenuBarExtra, Clipboard, showHUD } from "@raycast/api";
+import { Icon, MenuBarExtra, Clipboard, showHUD, Color } from "@raycast/api";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
@@ -19,6 +19,7 @@ interface PiStatus {
   ping: boolean;
   error?: string;
   lastChecked: Date;
+  justCopied?: boolean;
 }
 
 const getReadableError = (error: unknown, stdout: string): string => {
@@ -67,7 +68,8 @@ const useRaspberryPiStatus = () => {
     RASPBERRY_PIS.map(pi => ({
       ...pi,
       ping: false,
-      lastChecked: new Date()
+      lastChecked: new Date(),
+      justCopied: false
     }))
   );
 
@@ -80,7 +82,8 @@ const useRaspberryPiStatus = () => {
             ...pi,
             ping: result.success,
             error: result.error,
-            lastChecked: new Date()
+            lastChecked: new Date(),
+            justCopied: false
           };
         })
       );
@@ -88,15 +91,32 @@ const useRaspberryPiStatus = () => {
     };
     
     checkPings();
-    const interval = setInterval(checkPings, 10000); // Check every 10 seconds
+    const interval = setInterval(checkPings, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  return { statuses, isLoading: false };
+  const handleCopy = async (ip: string, index: number) => {
+    await Clipboard.copy(ip);
+    setStatuses(current => 
+      current.map((status, idx) => 
+        idx === index ? { ...status, justCopied: true } : status
+      )
+    );
+    // Reset the copied state after 2 seconds
+    setTimeout(() => {
+      setStatuses(current =>
+        current.map((status, idx) =>
+          idx === index ? { ...status, justCopied: false } : status
+        )
+      );
+    }, 2000);
+  };
+
+  return { statuses, isLoading: false, handleCopy };
 };
 
 export default function Command() {
-  const { statuses, isLoading } = useRaspberryPiStatus();
+  const { statuses, isLoading, handleCopy } = useRaspberryPiStatus();
   
   const getStatusIcon = (isConnected: boolean) => {
     return isConnected ? "🟢" : "🔴";
@@ -104,11 +124,6 @@ export default function Command() {
 
   const getLastCheckedTime = (date: Date) => {
     return date.toLocaleTimeString();
-  };
-
-  const handleCopyIP = async (ip: string, name: string) => {
-    await Clipboard.copy(ip);
-    await showHUD(`Copied ${name}'s IP: ${ip}`);
   };
 
   // Calculate overall status - green if all Pis are up, red if any are down
@@ -121,24 +136,23 @@ export default function Command() {
       tooltip="Raspberry Pi Status Monitor"
       isLoading={isLoading}
     >
-      {statuses.map((status) => (
-        <MenuBarExtra.Section key={status.ip} title={status.name}>
+      {statuses.map((status, index) => (
+        <MenuBarExtra.Section key={status.ip}>
           <MenuBarExtra.Item
-            title={`Status: ${getStatusIcon(status.ping)}`}
-            subtitle={status.ip}
+            title={status.name}
+            icon={Icon.Desktop}
+            subtitle={getStatusIcon(status.ping)}
           />
           <MenuBarExtra.Item
-            title="Copy IP"
-            icon={Icon.CopyClipboard}
-            onAction={() => handleCopyIP(status.ip, status.name)}
-          />
-          <MenuBarExtra.Item
-            title="Last Checked"
+            title={`${status.ip}`}
+            icon={status.justCopied ? Icon.CheckCircle : Icon.CopyClipboard}
+            onAction={() => handleCopy(status.ip, index)}
             subtitle={getLastCheckedTime(status.lastChecked)}
           />
           {status.error && (
             <MenuBarExtra.Item
               title="Troubleshooting"
+              icon={Icon.ExclamationMark}
               subtitle={status.error}
             />
           )}
