@@ -1,25 +1,42 @@
 import { useEffect, useState } from "react";
-import { Icon, MenuBarExtra } from "@raycast/api";
-import { useFetch } from "@raycast/utils";
+import { Icon, MenuBarExtra, Clipboard, showHUD } from "@raycast/api";
 import { exec } from "node:child_process";
 import { promisify } from "node:util";
 
 const execAsync = promisify(exec);
 const PING_COMMAND = "/sbin/ping";
-const RASPBERRY_PI_IP = "192.168.1.231";
-const ZIGBEE_PORT = "8080";
 
-interface Status {
-  raspberryPi: {
-    ping: boolean;
-    error?: string;
-  };
-  zigbee2mqtt: {
-    reachable: boolean;
-    html: string | null;
-    error?: string;
-  };
+// Add your Raspberry Pi IPs here
+const RASPBERRY_PIS = [
+  { ip: "192.168.0.224", name: "Master Pi (Pi 5)" },
+  { ip: "192.168.0.203", name: "Worker Pi (Pi 5)" },
+  { ip: "192.168.0.155", name: "Worker Pi (Pi 2b)" },
+];
+
+interface PiStatus {
+  ip: string;
+  name: string;
+  ping: boolean;
+  error?: string;
+  lastChecked: Date;
 }
+
+const getReadableError = (error: unknown, stdout: string): string => {
+  if (stdout.includes("100.0% packet loss")) {
+    return "Pi is unreachable. Please check if:\n• Pi is powered on\n• Connected to the network\n• IP address is correct";
+  }
+  
+  if (error instanceof Error) {
+    if (error.message.includes("command not found")) {
+      return "Ping command not available. Please check system configuration.";
+    }
+    if (error.message.includes("Name or service not known")) {
+      return "Invalid IP address format";
+    }
+  }
+  
+  return "Connection failed. Check network connectivity.";
+};
 
 const pingHost = async (host: string): Promise<{ success: boolean; error?: string }> => {
   try {
@@ -34,111 +51,99 @@ const pingHost = async (host: string): Promise<{ success: boolean; error?: strin
     }
     return {
       success: isSuccess,
-      error: stderr || undefined
+      error: isSuccess ? undefined : getReadableError(stderr, stdout)
     };
   } catch (error) {
     console.log("🔴 Ping error:", error);
-    if (error instanceof Error && error.message.includes("command not found")) {
-      return {
-        success: false,
-        error: "Ping command not available. Please check system configuration."
-      };
-    }
-    return { success: false, error: String(error) };
+    return { 
+      success: false, 
+      error: getReadableError(error, "") 
+    };
   }
 };
 
 const useRaspberryPiStatus = () => {
-  const [pingStatus, setPingStatus] = useState<{ success: boolean; error?: string }>({ success: false });
+  const [statuses, setStatuses] = useState<PiStatus[]>(
+    RASPBERRY_PIS.map(pi => ({
+      ...pi,
+      ping: false,
+      lastChecked: new Date()
+    }))
+  );
 
   useEffect(() => {
-    const checkPing = async () => {
-      const result = await pingHost(RASPBERRY_PI_IP);
-      setPingStatus(result);
+    const checkPings = async () => {
+      const newStatuses = await Promise.all(
+        RASPBERRY_PIS.map(async (pi) => {
+          const result = await pingHost(pi.ip);
+          return {
+            ...pi,
+            ping: result.success,
+            error: result.error,
+            lastChecked: new Date()
+          };
+        })
+      );
+      setStatuses(newStatuses);
     };
-    checkPing();
-    const interval = setInterval(checkPing, 10000); // Check every 10 seconds
+    
+    checkPings();
+    const interval = setInterval(checkPings, 10000); // Check every 10 seconds
     return () => clearInterval(interval);
   }, []);
 
-  const { data: zigbeeData, error: zigbeeError } = useFetch(`http://${RASPBERRY_PI_IP}:${ZIGBEE_PORT}`, {
-    execute: true,
-    timeout: 2000,
-    parseResponse: async (response) => {
-      const text = await response.text();
-      console.log("🔍 Zigbee response:", text.substring(0, 200) + "...");
-      return {
-        text,
-        isZigbee: text.includes("Zigbee2MQTT")
-      };
-    },
-    onError: (error) => {
-      console.log("🔴 Zigbee error:", error.message);
-    },
-    onData: (data) => {
-      console.log("🟢 Zigbee data:", data);
-    }
-  });
-
-  const status: Status = {
-    raspberryPi: {
-      ping: pingStatus.success,
-      error: pingStatus.error
-    },
-    zigbee2mqtt: {
-      reachable: !zigbeeError && zigbeeData?.isZigbee,
-      html: zigbeeData?.text || null,
-      error: zigbeeError?.message
-    }
-  };
-
-  return { status, isLoading: false };
+  return { statuses, isLoading: false };
 };
 
 export default function Command() {
-  const { status, isLoading } = useRaspberryPiStatus();
+  const { statuses, isLoading } = useRaspberryPiStatus();
   
   const getStatusIcon = (isConnected: boolean) => {
     return isConnected ? "🟢" : "🔴";
   };
 
+  const getLastCheckedTime = (date: Date) => {
+    return date.toLocaleTimeString();
+  };
+
+  const handleCopyIP = async (ip: string, name: string) => {
+    await Clipboard.copy(ip);
+    await showHUD(`Copied ${name}'s IP: ${ip}`);
+  };
+
+  // Calculate overall status - green if all Pis are up, red if any are down
+  const allPisUp = statuses.every(status => status.ping);
+
   return (
     <MenuBarExtra
-      icon={status.raspberryPi.ping ? Icon.CircleFilled : Icon.Circle}
-      title={`Pi: ${RASPBERRY_PI_IP}`}
-      tooltip={`Raspberry Pi (${RASPBERRY_PI_IP})`}
+      icon={allPisUp ? Icon.CircleFilled : Icon.Circle}
+      title={`Pis: ${statuses.filter(s => s.ping).length}/${statuses.length}`}
+      tooltip="Raspberry Pi Status Monitor"
       isLoading={isLoading}
     >
-      <MenuBarExtra.Section title="Raspberry Pi">
-        <MenuBarExtra.Item
-          title={`Ping: ${getStatusIcon(status.raspberryPi.ping)}`}
-          subtitle={RASPBERRY_PI_IP}
-        />
-        {status.raspberryPi.error && (
+      {statuses.map((status) => (
+        <MenuBarExtra.Section key={status.ip} title={status.name}>
           <MenuBarExtra.Item
-            title="Error"
-            subtitle={status.raspberryPi.error}
+            title={`Status: ${getStatusIcon(status.ping)}`}
+            subtitle={status.ip}
           />
-        )}
-      </MenuBarExtra.Section>
-      <MenuBarExtra.Section title="Zigbee2MQTT">
-        <MenuBarExtra.Item
-          title={`Status: ${getStatusIcon(status.zigbee2mqtt.reachable)}`}
-          subtitle={`Port ${ZIGBEE_PORT}`}
-        />
-        {status.zigbee2mqtt.html && (
           <MenuBarExtra.Item
-            title="Details"
-            subtitle={status.zigbee2mqtt.reachable ? "Zigbee2MQTT UI detected" : "No Zigbee2MQTT UI found"}
+            title="Copy IP"
+            icon={Icon.CopyClipboard}
+            onAction={() => handleCopyIP(status.ip, status.name)}
           />
-        )}
-        {status.zigbee2mqtt.error && (
           <MenuBarExtra.Item
-            title="Error"
-            subtitle={status.zigbee2mqtt.error}
+            title="Last Checked"
+            subtitle={getLastCheckedTime(status.lastChecked)}
           />
-        )}
-      </MenuBarExtra.Section>
+          {status.error && (
+            <MenuBarExtra.Item
+              title="Troubleshooting"
+              subtitle={status.error}
+            />
+          )}
+        </MenuBarExtra.Section>
+      ))}
     </MenuBarExtra>
   );
 } 
