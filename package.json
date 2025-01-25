@@ -1,7 +1,7 @@
 {
   "name": "raspberry-pi-monitor",
   "title": "Raspberry Pi Monitor",
-  "description": "Monitor Raspberry Pi and Zigbee2MQTT status",
+  "description": "Monitor Raspberry Pi status",
   "icon": "command-icon.png",
   "author": "your-name",
   "categories": [
@@ -12,7 +12,7 @@
     {
       "name": "index",
       "title": "Show Pi Status",
-      "description": "Shows Raspberry Pi and Zigbee2MQTT status",
+      "description": "Shows Raspberry Pi status",
       "mode": "menu-bar"
     }
   ],
