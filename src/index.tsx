@@ -13,6 +13,7 @@ const RASPBERRY_PIS = [
   { ip: "192.168.0.224", name: "Master Pi (Pi 5)" },
   { ip: "192.168.0.203", name: "Worker Pi (Pi 5)" },
   { ip: "192.168.0.155", name: "Worker Pi (Pi 2b)" },
+  { ip: "192.168.0.15", name: "Worker Pi (Pi 5)" }
 ];
 
 // Type definition for the status of each Raspberry Pi
