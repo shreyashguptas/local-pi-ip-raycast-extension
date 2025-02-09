@@ -14,13 +14,14 @@ const RASPBERRY_PIS = [
   { ip: "192.168.0.203", name: "Worker Pi (Pi 5)" },
   { ip: "192.168.0.155", name: "Worker Pi (Pi 2b)" },
   { ip: "192.168.0.15", name: "Worker Pi (Pi 5)" },
-  { ip: "192.168.0.7", name: "Worker Pi (Pi Zero 2W)" },
+  { ip: "192.168.0.7", name: "Pi Zero 2W" },
+  { ip: "192.168.0.37", name: "hpomen" }
 ];
 
 // Type definition for the status of each Raspberry Pi
 interface PiStatus {
   ip: string;          // IP address of the Pi
-  name: string;        // Display name of the Pi
+  name: string;       // Display name of the Pi
   ping: boolean;       // Whether the Pi is responding to pings
   error?: string;      // Error message if ping fails
   lastChecked: Date;   // Timestamp of last status check
