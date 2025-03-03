@@ -13,7 +13,7 @@ const RASPBERRY_PIS = [
   { ip: "192.168.0.15", name: "Pi5-8GB-1" },
   { ip: "192.168.0.224", name: "Pi5-4GB-1" },
   { ip: "192.168.0.203", name: "Pi5-4GB-2" },
-  { ip: "192.168.0.155", name: "Pi5-1GB" },
+  { ip: "192.168.0.155", name: "Pi2-1GB-1" },
   { ip: "192.168.0.7", name: "Pi Zero 2W" },
 ];
 
