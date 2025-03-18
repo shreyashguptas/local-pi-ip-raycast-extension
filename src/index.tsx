@@ -10,11 +10,11 @@ const PING_COMMAND = "/sbin/ping";
 // Configuration: List of Raspberry Pis to monitor
 // Add or remove Pis by modifying this array
 const RASPBERRY_PIS = [
-  { ip: "192.168.0.15", name: "Pi5-8GB-1" },
-  { ip: "192.168.0.224", name: "Pi5-4GB-1" },
-  { ip: "192.168.0.203", name: "Pi5-4GB-2" },
-  { ip: "192.168.0.155", name: "Pi2-1GB-1" },
-  { ip: "192.168.0.7", name: "Pi Zero 2W" },
+  { ip: "192.168.0.15", name: "K3S-Master" },
+  { ip: "192.168.0.224", name: "K3S-Worker-1" },
+  { ip: "192.168.0.203", name: "K3S-Worker-2" },
+  { ip: "192.168.0.155", name: "K3S-Worker-3" },
+  { ip: "192.168.0.171", name: "Pi5-4gb-64gb-2" },
 ];
 
 // Type definition for the status of each Raspberry Pi
